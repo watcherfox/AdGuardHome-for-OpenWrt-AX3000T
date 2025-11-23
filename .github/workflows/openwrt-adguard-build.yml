@@ -1,0 +1,55 @@
+name: Build AdGuardHome for AX3000T (OpenWrt 24.10)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout OpenWrt source
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/openwrt
+          ref: openwrt-24.10
+          fetch-depth: 0
+
+      - name: Checkout OpenWrt packages feed
+        run: |
+          git clone --depth=1 https://github.com/openwrt/packages.git package-feed
+
+      - name: Setup feeds configuration to use local packages feed
+        run: |
+          echo "src-link packages ./package-feed" >> feeds.conf.default
+
+      - name: Update and install feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Clone your custom packages repo (fork with adguardhome)
+        run: |
+          git clone https://github.com/watcherfox/packages.git package-fork
+          cp -r package-fork/net/adguardhome package/network/
+
+      - name: Prepare clean config for AX3000T
+        run: |
+          make distclean
+          echo "CONFIG_TARGET_mediatek_filogic=y" > .config
+          echo "CONFIG_TARGET_ARCH_PACKAGES=\"aarch64_cortex-a53\"" >> .config
+          echo "CONFIG_PACKAGE_adguardhome=y" >> .config
+          make defconfig
+
+      - name: Build toolchain and base system
+        run: make toolchain/install -j$(nproc)
+
+      - name: Build AdGuardHome package only
+        run: make package/adguardhome/compile V=s
+
+      - name: Upload built package
+        uses: actions/upload-artifact@v4
+        with:
+          name: adguardhome-ax3000t
+          path: bin/packages/aarch64_cortex-a53/*/adguardhome*.ipk
