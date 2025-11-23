@@ -1,4 +1,4 @@
-name: Build AdGuardHome for OpenWrt 24.10 (AX3000T MT7981)
+name: Build AdGuardHome for OpenWrt 24.10 (MT7981 AX3000T)
 
 on:
   workflow_dispatch:
@@ -9,32 +9,28 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout THIS repo (for workflow only)
-        uses: actions/checkout@v4
-
       - name: Checkout OpenWrt source
         uses: actions/checkout@v4
         with:
           repository: openwrt/openwrt
           ref: openwrt-24.10
-          path: openwrt
           fetch-depth: 0
 
-      - name: Checkout OpenWrt packages (for AdGuardHome)
+      - name: Checkout OpenWrt packages repo
         uses: actions/checkout@v4
         with:
           repository: openwrt/packages
-          ref: openwrt-24.10
           path: packages
+          ref: openwrt-24.10
           fetch-depth: 0
 
-      - name: Copy AdGuardHome package
+      - name: Copy AdGuardHome package into OpenWrt tree
         run: |
-          rm -rf openwrt/package/network/adguardhome
-          mkdir -p openwrt/package/network
-          cp -r packages/net/adguardhome openwrt/package/network/
+          rm -rf package/network/adguardhome
+          mkdir -p package/network
+          cp -r packages/net/adguardhome package/network/
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           sudo apt update
           sudo apt install -y \
@@ -42,13 +38,13 @@ jobs:
             gettext libncurses-dev libssl-dev python3 python3-setuptools \
             rsync unzip zlib1g-dev file wget
 
-      - name: Update base feeds
+      - name: Update and install all feeds
         run: |
           cd openwrt
-          ./scripts/feeds update base
+          ./scripts/feeds update -a
           ./scripts/feeds install -a
 
-      - name: Prepare config for AX3000T
+      - name: Prepare minimal config for MT7981 (AX3000T)
         run: |
           cd openwrt
           make distclean
@@ -57,15 +53,22 @@ jobs:
             echo "CONFIG_TARGET_mediatek_filogic=y"
             echo "CONFIG_TARGET_mediatek_filogic_DEVICE_xiaomi_mi-router-ax3000t=y"
             echo "CONFIG_PACKAGE_adguardhome=m"
+            echo "CONFIG_PACKAGE_golang=y"
+            echo "CONFIG_PACKAGE_node=y"
           } > .config
           make defconfig
 
-      - name: Build AdGuardHome package
+      - name: Build toolchain (must be done before building packages)
+        run: |
+          cd openwrt
+          make toolchain/install -j$(nproc)
+
+      - name: Build AdGuardHome package only
         run: |
           cd openwrt
           make package/adguardhome/compile -j$(nproc) V=s
 
-      - name: Upload artifacts
+      - name: Upload built packages
         uses: actions/upload-artifact@v4
         with:
           name: adguardhome-mt7981-openwrt-24.10
