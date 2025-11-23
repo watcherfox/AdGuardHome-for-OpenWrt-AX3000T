@@ -1,4 +1,4 @@
-name: Build AdGuardHome for OpenWrt 24.10
+name: Build AdGuardHome for OpenWrt 24.10 (AX3000T MT7981)
 
 on:
   workflow_dispatch:
@@ -6,17 +6,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
-      - name: Checkout OpenWrt source
+      - name: Checkout OpenWrt
         uses: actions/checkout@v4
         with:
           repository: openwrt/openwrt
           ref: openwrt-24.10
           fetch-depth: 0
 
-      - name: Checkout OpenWrt packages
+      - name: Checkout packages repo
         uses: actions/checkout@v4
         with:
           repository: openwrt/packages
@@ -24,55 +24,50 @@ jobs:
           ref: openwrt-24.10
           fetch-depth: 0
 
-      - name: Copy adguardhome package to openwrt package directory
+      - name: Copy AdGuardHome package into OpenWrt tree
         run: |
           rm -rf package/network/adguardhome
-          cp -r packages/net/adguardhome package/network/adguardhome
+          mkdir -p package/network
+          cp -r packages/net/adguardhome package/network/
 
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install -y software-properties-common
-          sudo add-apt-repository universe || true
-          sudo apt update
           sudo apt install -y \
-            build-essential clang flex bison g++ gawk gcc-multilib \
-            g++-multilib gettext git libncurses-dev libssl-dev \
-            python3 python3-pip python3-setuptools \
+            build-essential clang flex bison gawk gcc-multilib g++-multilib \
+            gettext libncurses-dev libssl-dev python3 python3-setuptools \
             rsync unzip zlib1g-dev file wget
 
-      - name: Update feeds
+      - name: Update feeds (minimal)
         run: |
-          ./scripts/feeds update -a
-          ./scripts/feeds install -a
+          ./scripts/feeds update base packages
+          ./scripts/feeds install golang
+          ./scripts/feeds install adguardhome
 
-      - name: Verify adguardhome package present
-        run: |
-          if [ ! -d "package/network/adguardhome" ]; then
-            echo "adguardhome package not found in package/network"
-            exit 1
-          fi
-
-      - name: Prepare minimal config for AX3000T (MediaTek MT7981 - arm64)
+      - name: Prepare minimal config for MT7981 (AX3000T)
         run: |
           make distclean
-          echo "CONFIG_TARGET_mediatek_filogic=y" > .config
-          echo "CONFIG_TARGET_ARCH_PACKAGES=\"aarch64_cortex-a53\"" >> .config
-          echo "CONFIG_PACKAGE_adguardhome=m" >> .config
+          {
+            echo "CONFIG_TARGET_filogic=y"
+            echo "CONFIG_TARGET_filogic_mt7981=y"
+            echo "CONFIG_TARGET_filogic_mt7981_DEVICE_xiaomi_mi-router-ax3000t=y"
+            echo "CONFIG_PACKAGE_golang=m"
+            echo "CONFIG_PACKAGE_adguardhome=m"
+          } > .config
           make defconfig
 
-      - name: Build toolchain
+      - name: Build golang host (required for AdGuardHome)
         run: |
-          make toolchain/install -j$(nproc)
+          make package/lang/golang/host/compile -j$(nproc) V=s
 
-      - name: Build AdGuardHome package only
+      - name: Build AdGuardHome package
         run: |
           make package/adguardhome/compile -j$(nproc) V=s
 
       - name: Upload built packages
         uses: actions/upload-artifact@v4
         with:
-          name: adguardhome-openwrt-24.10
+          name: adguardhome-mt7981-openwrt-24.10
           path: |
             bin/packages/**/adguardhome*.ipk
             bin/targets/**/packages/adguardhome*.ipk
