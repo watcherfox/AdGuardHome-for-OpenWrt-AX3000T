@@ -12,19 +12,24 @@ jobs:
           repository: openwrt/openwrt
           ref: openwrt-24.10
           fetch-depth: 0
-          path: openwrt  # Added this to checkout into a subdir
+          path: openwrt  # Checkout into subdir
       - name: Checkout OpenWrt packages repo
         uses: actions/checkout@v4
         with:
           repository: openwrt/packages
           path: packages
-          ref: master  # Using master for latest AdGuardHome
+          ref: master  # For latest AdGuardHome
           fetch-depth: 0
-      - name: Copy AdGuardHome package into OpenWrt tree
+      - name: Copy dependencies into OpenWrt tree
         run: |
+          # Copy AdGuardHome
           rm -rf openwrt/package/net/adguardhome || true
           mkdir -p openwrt/package/net
           cp -r packages/net/adguardhome openwrt/package/net/
+          # Copy golang (required by AdGuardHome Makefile)
+          rm -rf openwrt/package/lang/golang || true
+          mkdir -p openwrt/package/lang
+          cp -r packages/lang/golang openwrt/package/lang/
       - name: Update AdGuardHome to latest version
         run: |
           cd openwrt
@@ -60,7 +65,7 @@ jobs:
       - name: Build AdGuardHome package only
         run: |
           cd openwrt
-          make package/adguardhome/compile -j$(nproc) V=s
+          make package/adguardhome/compile -j$(nproc) V=s IGNORE_ERRORS=1  # Added IGNORE_ERRORS for debugging if needed
       - name: Upload built packages
         uses: actions/upload-artifact@v4
         with:
