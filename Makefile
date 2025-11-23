@@ -1,12 +1,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=adguardhome
-PKG_VERSION:=0.107.64
+PKG_VERSION:=0.107.69
 PKG_RELEASE:=$(AUTORELEASE)
 
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE_URL:=https://github.com/AdguardTeam/AdGuardHome.git
-PKG_SOURCE_DATE:=2025-08-15  # Замените на дату последнего коммита, если нужно свежее
+PKG_SOURCE_DATE:=2025-10-15  # Замените на дату последнего коммита, если нужно свежее
 PKG_SOURCE_VERSION:=v$(PKG_VERSION)
 
 PKG_LICENSE:=GPL-3.0-only
